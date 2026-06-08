@@ -1,14 +1,20 @@
-import { Command } from "commander";
+#!/usr/bin/env bun
 
+import { Command } from "commander";
+import { runWakeup } from "./tui/wakeup.ts";
 
 const program = new Command();
 
-program.name("TwoClaw").description("TwoClaw is a CLI tool for running two-command workflows.").action(
-    async () => {
-        console.log("TwoClaw is running...");
-    }
-)
+program
+    .name("twoclaw")
+    .description("TwoClaw cli tool")
+    .version("0.0.1");
 
+program
+    .command("wakeup")
+    .description("Show the banner and pick cli or telegram mode")
+    .action(async () => {
+        await runWakeup()
+    });
 
-
-program.parse(process.argv);
+await program.parseAsync(process.argv);
