@@ -8,6 +8,7 @@
   },
   "devDependencies": {
     "@types/bun": "latest",
+    "@types/marked-terminal": "^6.1.1",
     "@types/node": "^25.9.2"
   },
   "peerDependencies": {
@@ -16,8 +17,15 @@
   "dependencies": {
     "@clack/core": "^1.4.1",
     "@clack/prompts": "^1.5.1",
+    "@mendable/firecrawl-js": "^4.28.2",
+    "@openrouter/ai-sdk-provider": "^2.9.1",
+    "ai": "^6.0.208",
     "chalk": "^5.6.2",
     "commander": "^15.0.0",
-    "figlet": "^1.11.0"
+    "diff": "^9.0.0",
+    "figlet": "^1.11.0",
+    "marked": "^18.0.5",
+    "marked-terminal": "^7.3.0",
+    "zod": "^4.4.3"
   }
 }
