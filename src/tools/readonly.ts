@@ -1,8 +1,8 @@
 import { tool } from "ai";
 import { z } from "zod";
-import type { ToolExecutor } from "./tool-executor";
+import type { ToolExecutor } from "./executor";
 
-export function createAgentTools(executor: ToolExecutor) {
+export function createReadOnlyTools(executor: ToolExecutor) {
   return {
     read_file: tool({
       description:
@@ -11,43 +11,6 @@ export function createAgentTools(executor: ToolExecutor) {
         path: z.string().describe("Relative file path"),
       }),
       execute: async ({ path: p }) => executor.readFile(p),
-    }),
-
-    create_file: tool({
-      description:
-        "Stage creation of a new file (not written until the user approves).",
-      inputSchema: z.object({
-        path: z.string(),
-        content: z.string(),
-      }),
-      execute: async ({ path: p, content }) => executor.createFile(p, content),
-    }),
-
-    modify_file: tool({
-      description:
-        "Stage a full-file replacement for an existing file (pending approval).",
-      inputSchema: z.object({
-        path: z.string(),
-        content: z.string().describe("Complete new file contents"),
-      }),
-      execute: async ({ path: p, content }) => executor.modifyFile(p, content),
-    }),
-
-    delete_file: tool({
-      description: "Stage deletion of a file (pending approval).",
-      inputSchema: z.object({
-        path: z.string(),
-      }),
-      execute: async ({ path: p }) => executor.deleteFile(p),
-    }),
-
-    create_folder: tool({
-      description:
-        "Stage creation of a directory tree (pending approval). Uses mkdir -p on apply.",
-      inputSchema: z.object({
-        path: z.string().describe("Relative directory path"),
-      }),
-      execute: async ({ path: p }) => executor.createFolder(p),
     }),
 
     list_files: tool({
@@ -81,15 +44,6 @@ export function createAgentTools(executor: ToolExecutor) {
         path: z.string().default("."),
       }),
       execute: async ({ path: p }) => executor.analyzeCodebase(p),
-    }),
-
-    execute_shell: tool({
-      description:
-        "Queue a shell command to run in the workspace after user approval. Use with care.",
-      inputSchema: z.object({
-        command: z.string().describe("Single command; runs with shell: true"),
-      }),
-      execute: async ({ command }) => executor.queueShell(command),
     }),
 
     list_skills: tool({

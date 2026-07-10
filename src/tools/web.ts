@@ -1,7 +1,6 @@
 import { tool } from "ai";
 import { z } from "zod";
-// import Firecrawl from "@mendable/firecrawl-js";
-import type { ActionTracker } from "../agent/action-tracker.ts";
+import type { ActionTracker } from "./tracker";
 
 let client: Firecrawl | null = null;
 
@@ -54,34 +53,34 @@ export function createWebTools(tracker: ActionTracker) {
       },
     }),
 
-     web_crawl: tool({
-      description: 'Scrape a URL into markdown text.',
+    web_crawl: tool({
+      description: "Scrape a URL into markdown text.",
       inputSchema: z.object({ url: z.string().url() }),
       execute: async ({ url }) => {
-        const doc = await getClient().scrape(url, { formats: ['markdown'] });
-        const md = (doc as { markdown?: string }).markdown ?? '';
+        const doc = await getClient().scrape(url, { formats: ["markdown"] });
+        const md = (doc as { markdown?: string }).markdown ?? "";
         tracker.log({
-          type: 'code_analysis',
+          type: "code_analysis",
           path: `web_crawl:${url}`,
-          details: { after: clip(md), toolName: 'web_crawl' },
-          status: 'executed',
+          details: { after: clip(md), toolName: "web_crawl" },
+          status: "executed",
         });
-        return clip(md) || '(empty)';
+        return clip(md) || "(empty)";
       },
     }),
 
     fetch_url: tool({
-      description: 'HTTP GET for a URL. Returns response body.',
+      description: "HTTP GET for a URL. Returns response body.",
       inputSchema: z.object({ url: z.string().url() }),
       execute: async ({ url }) => {
-        const r = await fetch(url, { redirect: 'follow' });
+        const r = await fetch(url, { redirect: "follow" });
         const body = await r.text();
         const out = clip(body, 16_000);
         tracker.log({
-          type: 'code_analysis',
+          type: "code_analysis",
           path: `fetch:${url}`,
-          details: { after: `HTTP ${r.status}\n\n${out}`, toolName: 'fetch_url' },
-          status: 'executed',
+          details: { after: `HTTP ${r.status}\n\n${out}`, toolName: "fetch_url" },
+          status: "executed",
         });
         return `HTTP ${r.status}\n\n${out}`;
       },

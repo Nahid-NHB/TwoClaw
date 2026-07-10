@@ -3,7 +3,7 @@ import path from "node:path";
 import { homedir } from "node:os";
 import { spawnSync } from "node:child_process";
 import type { AgentConfig, ActionLog } from "./types";
-import { ActionTracker } from "./action-tracker";
+import { ActionTracker } from "./tracker";
 
 const TEXT_EXT = new Set([
   ".ts",
@@ -309,6 +309,7 @@ export class ToolExecutor {
     });
     return `Shell queued: ${command}`;
   }
+
   skillRoots(): string[] {
     const extra =
       process.env.SKILLS_DIRS?.split(/[;]/)
@@ -422,8 +423,8 @@ export class ToolExecutor {
     return { errors };
   }
 
-  clearStaging():void{
-    this.overlay.clear()
-    this.deleted.clear()
+  clearStaging(): void {
+    this.overlay.clear();
+    this.deleted.clear();
   }
 }

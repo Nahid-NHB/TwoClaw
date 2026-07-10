@@ -11,4 +11,3 @@ export interface Plan {
   researchSummary?: string;
   steps: PlanStep[];
 }
-

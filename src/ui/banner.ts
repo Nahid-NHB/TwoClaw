@@ -1,21 +1,20 @@
 import { select, isCancel } from "@clack/prompts";
-import chalk from "chalk"
+import chalk from "chalk";
 import figlet from "figlet";
-import { runCliMode } from "../modes/cli";
+import { runCliMode } from "../modes/selector";
 import { runTelegramMode } from "../modes/telegram";
 
-const BANNER_FONT = 'ANSI Shadow';
-const SHADOW = chalk.hex('#3fcf29ff');
-const FACE = chalk.hex('#e8d82dff').bold;
+const BANNER_FONT = "ANSI Shadow";
+const SHADOW = chalk.hex("#3fcf29ff");
+const FACE = chalk.hex("#e8d82dff").bold;
 
 function printBannerWithShadow(ascii: string) {
-
-  const bannerLines = ascii.replace(/\s+$/, '').split('\n');
+  const bannerLines = ascii.replace(/\s+$/, "").split("\n");
   const maxLen = Math.max(...bannerLines.map((l) => l.length), 0);
   const rowWidth = maxLen + 2;
 
   for (const line of bannerLines) {
-    console.log(SHADOW(('  ' + line).padEnd(rowWidth)));
+    console.log(SHADOW(("  " + line).padEnd(rowWidth)));
   }
   process.stdout.write(`\x1b[${bannerLines.length}A`);
   for (const line of bannerLines) {
@@ -24,37 +23,33 @@ function printBannerWithShadow(ascii: string) {
   console.log();
 }
 
-
-
 export async function runWakeup() {
   let ascii: string;
   try {
-    ascii = figlet.textSync("TwoClaw", { font: BANNER_FONT })
+    ascii = figlet.textSync("TwoClaw", { font: BANNER_FONT });
   } catch (error) {
-    ascii = figlet.textSync("TwoClaw", { font: "Bloody" })
+    ascii = figlet.textSync("TwoClaw", { font: "Bloody" });
   }
 
-  printBannerWithShadow(ascii)
+  printBannerWithShadow(ascii);
 
   const mode = await select({
     message: "Which mode you want to proceed with?",
     options: [
       { value: "cli", label: "CLI" },
       { value: "telegram", label: "Telegram" },
-      { value: "exit", label: "Exit" }
-    ]
+      { value: "exit", label: "Exit" },
+    ],
   });
 
   if (isCancel(mode || mode === "exit")) {
-    console.log(chalk.dim('\n Goodbye. \n'));
+    console.log(chalk.dim("\n Goodbye. \n"));
     return;
   }
 
-    if(mode === "cli"){
-        await runCliMode()
-    }
-    else if(mode === "telegram"){
-        await runTelegramMode()
-    }
-
+  if (mode === "cli") {
+    await runCliMode();
+  } else if (mode === "telegram") {
+    await runTelegramMode();
+  }
 }

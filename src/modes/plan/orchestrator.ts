@@ -1,23 +1,21 @@
 import chalk from "chalk";
 import { confirm, isCancel, text } from "@clack/prompts";
 import { ToolLoopAgent, stepCountIs } from "ai";
-import { getAgentModel } from "../../ai/ai.config.ts";
-import { ActionTracker } from "../agent/action-tracker.ts";
-import { ToolExecutor } from "../agent/tool-executor.ts";
-import { createAgentTools } from "../agent/agent-tools.ts";
-import { defaultAgentConfig } from "../agent/types.ts";
-import { runApprovalFlow } from "../agent/approval.ts";
-import { renderTerminalMarkdown } from "../../tui/terminal-md.ts";
-import { generatePlan } from "./planner.ts";
-import { printPlan, selectSteps } from "./selection.ts";
-import type { PlanStep } from "./types.ts";
-import { createWebTools } from "./web-tools.ts";
-
+import { getAgentModel } from "../../ai";
+import { ActionTracker } from "../../tools/tracker";
+import { ToolExecutor } from "../../tools/executor";
+import { createAgentTools } from "../agent/tools";
+import { createWebTools } from "../../tools/web";
+import { defaultAgentConfig } from "../../tools/types";
+import { runApprovalFlow } from "../../tools/approval";
+import { renderTerminalMarkdown } from "../../ui/terminal-md";
+import { generatePlan } from "./planner";
+import { printPlan, selectSteps } from "./selection";
+import type { PlanStep } from "./types";
 
 function stepPrompt(goal: string, step: PlanStep): string {
-  return [`Goal: ${goal}`, `Step: ${step.title}`, step.description].join('\n');
+  return [`Goal: ${goal}`, `Step: ${step.title}`, step.description].join("\n");
 }
-
 
 export async function runPlanMode(): Promise<void> {
   console.log(chalk.bold("\n🧭 Plan Mode\n"));
@@ -41,37 +39,35 @@ export async function runPlanMode(): Promise<void> {
   const tracker = new ActionTracker();
   const executor = new ToolExecutor(tracker, config);
 
-
   const tools = {
     ...createAgentTools(executor),
-    ...createWebTools(tracker)
+    ...createWebTools(tracker),
   };
 
   for (const step of selected) {
     console.log(chalk.bold(`\n🔧 ${step.title}\n`));
 
     const agent = new ToolLoopAgent({
-      model:getAgentModel(),
-      stopWhen:stepCountIs(30),
-      tools
+      model: getAgentModel(),
+      stopWhen: stepCountIs(30),
+      tools,
     });
 
-    const r = await agent.generate({prompt:stepPrompt(plan.goal , step)})
+    const r = await agent.generate({ prompt: stepPrompt(plan.goal, step) });
 
-    if(r.text) return console.log(renderTerminalMarkdown(r.text))
-
+    if (r.text) return console.log(renderTerminalMarkdown(r.text));
   }
 
   const ok = await runApprovalFlow(tracker);
 
-  if(!ok) return executor.clearStaging();
+  if (!ok) return executor.clearStaging();
 
-   const { errors } = executor.applyApprovedFromTracker();
+  const { errors } = executor.applyApprovedFromTracker();
   if (errors.length) {
-    console.log(chalk.red('\nSome operations reported errors:\n'));
+    console.log(chalk.red("\nSome operations reported errors:\n"));
     for (const e of errors) console.log(chalk.red(`  • ${e}`));
   } else {
-    console.log(chalk.green('\n✓ Applied.\n'));
+    console.log(chalk.green("\n✓ Applied.\n"));
   }
   executor.clearStaging();
 }
