@@ -1,11 +1,10 @@
 import { isCancel, text } from "@clack/prompts";
 import chalk from "chalk";
-import { ToolLoopAgent, stepCountIs } from "ai";
-import { getAgentModel } from "../../ai";
-import { defaultAgentConfig } from "../../tools/types";
-import { ActionTracker } from "../../tools/tracker";
-import { ToolExecutor } from "../../tools/executor";
-import { createAgentTools } from "./tools";
+import { defaultAgentConfig } from "../../core/tools/types";
+import { ToolCallLog } from "../../core/tools/tracker";
+import { ToolExecutor } from "../../core/tools/executor";
+import { createTools } from "../../core/tools/factory";
+import { runAgentSession } from "../../core/session";
 import { runApprovalFlow } from "../../tools/approval";
 import { renderTerminalMarkdown } from "../../ui/terminal-md";
 
@@ -20,37 +19,31 @@ export async function runAgentMode() {
   if (isCancel(goal) || !goal.trim()) return;
 
   const config = defaultAgentConfig();
-  const tracker = new ActionTracker();
-  const executor = new ToolExecutor(tracker, config);
-  const tools = createAgentTools(executor);
+  const log = new ToolCallLog();
+  const executor = new ToolExecutor(log, config);
+  const tools = createTools(executor);
 
-  const agent = new ToolLoopAgent({
-    model: getAgentModel(),
-    stopWhen: stepCountIs(40),
+  const { text: resultText } = await runAgentSession({
+    goal: goal.trim(),
+    tools,
+    maxSteps: 40,
     instructions: [
       `Workspace root: ${config.codebasePath}`,
       "All mutations are staged until approval.",
     ].join("\n"),
-    tools,
-  });
-
-  const result = await agent.generate({
-    prompt: goal.trim(),
-    onStepFinish: ({ toolCalls }) => {
-      for (const tc of toolCalls) {
-        const preview = JSON.stringify(tc.input).slice(0, 160);
-        console.log(
-          chalk.green("  ✓"),
-          chalk.bold(String(tc.toolName)),
-          chalk.dim(preview + (preview.length >= 160 ? "..." : "")),
-        );
-      }
+    onToolCall: (toolName, input) => {
+      const preview = JSON.stringify(input).slice(0, 160);
+      console.log(
+        chalk.green("  ✓"),
+        chalk.bold(toolName),
+        chalk.dim(preview + (preview.length >= 160 ? "..." : "")),
+      );
     },
   });
 
-  if (result.text?.trim()) console.log(renderTerminalMarkdown(result.text));
+  if (resultText.trim()) console.log(renderTerminalMarkdown(resultText));
 
-  const ok = await runApprovalFlow(tracker);
+  const ok = await runApprovalFlow(log);
   if (!ok) return executor.clearStaging();
 
   const { errors } = executor.applyApprovedFromTracker();

@@ -2,8 +2,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { homedir } from "node:os";
 import { spawnSync } from "node:child_process";
-import type { AgentConfig, ActionLog } from "./types";
-import { ActionTracker } from "./tracker";
+import type { AgentConfig, StagedMutation } from "./types";
+import { ToolCallLog } from "./tracker";
 
 const TEXT_EXT = new Set([
   ".ts",
@@ -28,6 +28,7 @@ function isProbablyTextFile(filePath: string): boolean {
   return TEXT_EXT.has(ext) || ext === "";
 }
 
+/** Operates on the Workspace: the codebase directory plus an in-memory overlay of Staged Mutations. */
 export class ToolExecutor {
   private overlay = new Map<string, string>();
   private deleted = new Set<string>();
@@ -35,7 +36,7 @@ export class ToolExecutor {
     path.posix.normalize(rel.split(path.sep).join("/")).replace(/^\.\//, "");
 
   constructor(
-    private readonly tracker: ActionTracker,
+    private readonly toolCallLog: ToolCallLog,
     private readonly config: AgentConfig,
   ) {}
 
@@ -90,11 +91,10 @@ export class ToolExecutor {
       throw new Error(`File too large: ${rel}`);
     }
     const text = fs.readFileSync(abs, "utf8");
-    this.tracker.log({
-      type: "code_analysis",
+    this.toolCallLog.record({
+      kind: "code_analysis",
       path: this.norm(rel),
       details: { after: text, toolName: "read_file" },
-      status: "executed",
     });
     return text;
   }
@@ -110,11 +110,10 @@ export class ToolExecutor {
     }
     this.deleted.delete(key);
     this.overlay.set(key, content);
-    this.tracker.log({
-      type: "file_create",
+    this.toolCallLog.record({
+      kind: "file_create",
       path: key,
       details: { after: content },
-      status: "pending",
     });
     return `Staged new file: ${key}`;
   }
@@ -128,11 +127,10 @@ export class ToolExecutor {
       throw new Error(`modify_file: file not found: ${rel}`);
     const key = this.norm(rel);
     this.overlay.set(key, content);
-    this.tracker.log({
-      type: "file_modify",
+    this.toolCallLog.record({
+      kind: "file_modify",
       path: key,
       details: { before, after: content },
-      status: "pending",
     });
     return `Staged update: ${key}`;
   }
@@ -147,11 +145,10 @@ export class ToolExecutor {
     const key = this.norm(rel);
     this.overlay.delete(key);
     this.deleted.add(key);
-    this.tracker.log({
-      type: "file_delete",
+    this.toolCallLog.record({
+      kind: "file_delete",
       path: key,
       details: { before },
-      status: "pending",
     });
     return `Staged delete: ${key}`;
   }
@@ -161,11 +158,10 @@ export class ToolExecutor {
       throw new Error("Folder creation disabled");
     this.assertNotExcluded(rel, "create_folder");
     const key = this.norm(rel);
-    this.tracker.log({
-      type: "folder_create",
+    this.toolCallLog.record({
+      kind: "folder_create",
       path: key,
       details: { after: key },
-      status: "pending",
     });
     return `Staged folder: ${key}`;
   }
@@ -195,11 +191,10 @@ export class ToolExecutor {
     else lines.push(path.relative(this.config.codebasePath, abs));
 
     const out = lines.sort().join("\n");
-    this.tracker.log({
-      type: "code_analysis",
+    this.toolCallLog.record({
+      kind: "code_analysis",
       path: this.norm(rel),
       details: { after: out, toolName: "list_files" },
-      status: "executed",
     });
     return out || "(empty)";
   }
@@ -256,11 +251,10 @@ export class ToolExecutor {
     }
 
     const out = [...new Set(results)].sort().join("\n");
-    this.tracker.log({
-      type: "code_analysis",
+    this.toolCallLog.record({
+      kind: "code_analysis",
       path: this.norm(rootRel),
       details: { after: out || "(no matches)", toolName: "search_files" },
-      status: "executed",
     });
     return out || "(no matches)";
   }
@@ -289,11 +283,10 @@ export class ToolExecutor {
     else files = 1;
 
     const summary = `Files: ${files} | Directories: ${dirs}`;
-    this.tracker.log({
-      type: "code_analysis",
+    this.toolCallLog.record({
+      kind: "code_analysis",
       path: this.norm(rootRel),
       details: { after: summary, toolName: "analyze_codebase" },
-      status: "executed",
     });
     return summary;
   }
@@ -301,11 +294,10 @@ export class ToolExecutor {
   queueShell(command: string): string {
     if (!this.config.tools.allowShellExecution)
       throw new Error("Shell execution disabled");
-    this.tracker.log({
-      type: "tool_execute",
+    this.toolCallLog.record({
+      kind: "tool_execute",
       path: "shell",
       details: { command, toolName: "execute_shell" },
-      status: "pending",
     });
     return `Shell queued: ${command}`;
   }
@@ -336,11 +328,10 @@ export class ToolExecutor {
       walk(root);
     }
     const out = lines.sort().join("\n");
-    this.tracker.log({
-      type: "code_analysis",
+    this.toolCallLog.record({
+      kind: "code_analysis",
       path: "skills",
       details: { after: out || "(none)", toolName: "list_skills" },
-      status: "executed",
     });
     return out || "(none)";
   }
@@ -355,60 +346,56 @@ export class ToolExecutor {
     });
     if (!allowed) throw new Error("read_skill: outside skill roots");
     const text = fs.readFileSync(abs, "utf8");
-    this.tracker.log({
-      type: "code_analysis",
+    this.toolCallLog.record({
+      kind: "code_analysis",
       path: abs,
       details: { after: text, toolName: "read_skill" },
-      status: "executed",
     });
     return text;
   }
 
   applyApprovedFromTracker(): { errors: string[] } {
     const errors: string[] = [];
-    const all = [...this.tracker.getActions()];
+    const approved = this.toolCallLog
+      .getStagedMutations()
+      .filter((m) => m.outcome === "approved");
 
-    for (const a of all.filter(
-      (x) => x.type === "folder_create" && x.status === "approved",
-    )) {
+    for (const m of approved.filter((x) => x.toolCall.kind === "folder_create")) {
       try {
-        fs.mkdirSync(this.resolveSafe(a.path), { recursive: true });
+        fs.mkdirSync(this.resolveSafe(m.toolCall.path), { recursive: true });
       } catch (e) {
         errors.push(String(e));
       }
     }
 
-    const fileOps = all
+    const fileOps = approved
       .filter(
-        (a) =>
-          (a.type === "file_create" ||
-            a.type === "file_modify" ||
-            a.type === "file_delete") &&
-          a.status === "approved",
+        (m) =>
+          m.toolCall.kind === "file_create" ||
+          m.toolCall.kind === "file_modify" ||
+          m.toolCall.kind === "file_delete",
       )
-      .sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+      .sort((a, b) => a.toolCall.timestamp.getTime() - b.toolCall.timestamp.getTime());
 
-    const lastByPath = new Map<string, ActionLog>();
-    for (const a of fileOps) lastByPath.set(this.norm(a.path), a);
+    const lastByPath = new Map<string, StagedMutation>();
+    for (const m of fileOps) lastByPath.set(this.norm(m.toolCall.path), m);
 
-    for (const [p, a] of lastByPath) {
+    for (const [p, m] of lastByPath) {
       try {
-        if (a.type === "file_delete")
+        if (m.toolCall.kind === "file_delete")
           fs.rmSync(this.resolveSafe(p), { force: true });
         else {
           const target = this.resolveSafe(p);
           fs.mkdirSync(path.dirname(target), { recursive: true });
-          fs.writeFileSync(target, a.details.after ?? "", "utf8");
+          fs.writeFileSync(target, m.toolCall.details.after ?? "", "utf8");
         }
       } catch (e) {
         errors.push(String(e));
       }
     }
 
-    for (const a of all.filter(
-      (x) => x.type === "tool_execute" && x.status === "approved",
-    )) {
-      const cmd = a.details.command;
+    for (const m of approved.filter((x) => x.toolCall.kind === "tool_execute")) {
+      const cmd = m.toolCall.details.command;
       if (!cmd) continue;
       const r = spawnSync(cmd, {
         shell: true,

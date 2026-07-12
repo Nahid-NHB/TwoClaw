@@ -1,40 +1,24 @@
 import { Markup } from "telegraf";
-import type { ActionTracker } from "../../tools/tracker";
-import type { ToolExecutor } from "../../tools/executor";
-import type { ActionLog } from "../../tools/types";
-import { composeBeforeAfter, formatPatch } from "../../tools/diff";
+import type { ToolCallLog } from "../../core/tools/tracker";
+import type { ToolExecutor } from "../../core/tools/executor";
+import type { StagedMutation } from "../../core/tools/types";
+import { groupPendingMutations } from "../../core/tools/approval";
 import { clip } from "./text";
 
 export interface ApprovalSession {
-  tracker: ActionTracker;
+  log: ToolCallLog;
   executor: ToolExecutor;
-  pending: ActionLog[];
+  pending: StagedMutation[];
 }
 
 export const approvalSessions = new Map<number, ApprovalSession>();
 
-function groupPending(pending: ActionLog[]) {
-  const files = new Map<string, ActionLog[]>();
-  const shells: ActionLog[] = [];
-  for (const a of pending) {
-    if (a.type === "tool_execute") shells.push(a);
-    else {
-      if (!files.has(a.path)) files.set(a.path, []);
-      files.get(a.path)!.push(a);
-    }
-  }
-  return { files, shells };
-}
-
-export function approvalSummary(pending: ActionLog[]): string {
-  const { files, shells } = groupPending(pending);
-  const fileLines = [...files].map(([path, actions]) => {
-    const types = [
-      ...new Set(actions.map((a) => a.type.replace(/_/g, " "))),
-    ].join(", ");
-    return `📄 ${path} (${types})`;
-  });
-  const shellLines = shells.map((s) => `🖥 Shell: ${s.details.command}`);
+export function approvalSummary(pending: StagedMutation[]): string {
+  const { files, shells } = groupPendingMutations(pending);
+  const fileLines = files.map(
+    (f) => `📄 ${f.path} (${f.kinds.map((k) => k.replace(/_/g, " ")).join(", ")})`,
+  );
+  const shellLines = shells.map((s) => `🖥 Shell: ${s.toolCall.details.command}`);
   return [
     "Staged changes — review before applying",
     "",
@@ -45,17 +29,13 @@ export function approvalSummary(pending: ActionLog[]): string {
   ].join("\n");
 }
 
-export function approvalDiff(pending: ActionLog[]): string {
-  const { files, shells } = groupPending(pending);
+export function approvalDiff(pending: StagedMutation[]): string {
+  const { files, shells } = groupPendingMutations(pending);
   const parts: string[] = [];
-  for (const [filePath, actions] of files) {
-    const sorted = [...actions].sort(
-      (a, b) => a.timestamp.getTime() - b.timestamp.getTime(),
-    );
-    const { before, after } = composeBeforeAfter(sorted);
-    parts.push(clip(formatPatch(filePath, before, after), 1500));
+  for (const f of files) {
+    if (f.patch) parts.push(clip(f.patch, 1500));
   }
-  for (const s of shells) parts.push(`🖥 Shell: ${s.details.command}`);
+  for (const s of shells) parts.push(`🖥 Shell: ${s.toolCall.details.command}`);
   return parts.join("\n\n").trim();
 }
 
@@ -79,14 +59,14 @@ async function promptApproval(
 export async function finishOrApprove(
   ctx: { reply: (t: string, o?: object) => Promise<unknown> },
   chatId: number,
-  tracker: ActionTracker,
+  log: ToolCallLog,
   executor: ToolExecutor,
   noChangesMsg: string,
 ) {
-  const pending = tracker.getPendingMutations();
+  const pending = log.getPendingMutations();
   if (pending.length === 0) {
     await ctx.reply(noChangesMsg);
     return;
   }
-  await promptApproval(ctx, chatId, { tracker, executor, pending });
+  await promptApproval(ctx, chatId, { log, executor, pending });
 }

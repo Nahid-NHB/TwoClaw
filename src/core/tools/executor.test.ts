@@ -3,20 +3,20 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { ToolExecutor } from "./executor";
-import { ActionTracker } from "./tracker";
+import { ToolCallLog } from "./tracker";
 import { defaultAgentConfig } from "./types";
 import type { AgentConfig } from "./types";
 
 let workspace: string;
 let config: AgentConfig;
-let tracker: ActionTracker;
+let log: ToolCallLog;
 let executor: ToolExecutor;
 
 beforeEach(() => {
   workspace = fs.mkdtempSync(path.join(os.tmpdir(), "twoclaw-executor-"));
   config = { ...defaultAgentConfig(), codebasePath: workspace };
-  tracker = new ActionTracker();
-  executor = new ToolExecutor(tracker, config);
+  log = new ToolCallLog();
+  executor = new ToolExecutor(log, config);
 });
 
 afterEach(() => {
@@ -41,7 +41,7 @@ describe("readFile", () => {
 
   test("throws for a file larger than maxFileSizeToRead", () => {
     config.maxFileSizeToRead = 4;
-    executor = new ToolExecutor(tracker, config);
+    executor = new ToolExecutor(log, config);
     fs.writeFileSync(path.join(workspace, "big.txt"), "way too big");
     expect(() => executor.readFile("big.txt")).toThrow("File too large");
   });
@@ -65,7 +65,7 @@ describe("createFile / modifyFile / deleteFile staging", () => {
 
   test("createFile throws when file creation is disabled", () => {
     config.tools.allowFileCreation = false;
-    executor = new ToolExecutor(tracker, config);
+    executor = new ToolExecutor(log, config);
     expect(() => executor.createFile("new.txt", "x")).toThrow("disabled");
   });
 
@@ -96,7 +96,7 @@ describe("createFolder", () => {
 
   test("throws when folder creation is disabled", () => {
     config.tools.allowFolderCreation = false;
-    executor = new ToolExecutor(tracker, config);
+    executor = new ToolExecutor(log, config);
     expect(() => executor.createFolder("newdir")).toThrow("disabled");
   });
 });
@@ -143,13 +143,13 @@ describe("analyzeCodebase", () => {
 });
 
 describe("applyApprovedFromTracker", () => {
-  test("only writes actions with status approved, ignoring pending/rejected", () => {
+  test("only writes mutations with outcome approved, ignoring pending/rejected", () => {
     executor.createFile("kept.txt", "keep me");
     executor.createFile("dropped.txt", "drop me");
 
-    const [kept, dropped] = tracker.getActions();
-    tracker.updateStatus(kept!.id, "approved", true);
-    tracker.updateStatus(dropped!.id, "rejected", false);
+    const [kept, dropped] = log.getStagedMutations();
+    log.resolveMutation(kept!.id, "approved", true);
+    log.resolveMutation(dropped!.id, "rejected", false);
 
     const { errors } = executor.applyApprovedFromTracker();
 
@@ -160,7 +160,7 @@ describe("applyApprovedFromTracker", () => {
 
   test("applies an approved folder_create with mkdir -p semantics", () => {
     executor.createFolder("a/b/c");
-    tracker.updateStatus(tracker.getActions()[0]!.id, "approved", true);
+    log.resolveMutation(log.getStagedMutations()[0]!.id, "approved", true);
 
     executor.applyApprovedFromTracker();
 
@@ -170,7 +170,7 @@ describe("applyApprovedFromTracker", () => {
   test("applies an approved file_delete by removing the file from disk", () => {
     fs.writeFileSync(path.join(workspace, "gone.txt"), "bye");
     executor.deleteFile("gone.txt");
-    tracker.updateStatus(tracker.getActions()[0]!.id, "approved", true);
+    log.resolveMutation(log.getStagedMutations()[0]!.id, "approved", true);
 
     executor.applyApprovedFromTracker();
 
@@ -179,7 +179,7 @@ describe("applyApprovedFromTracker", () => {
 
   test("runs an approved shell command in the workspace", () => {
     executor.queueShell(`node -e "require('fs').writeFileSync('marker.txt','ran')"`);
-    tracker.updateStatus(tracker.getActions()[0]!.id, "approved", true);
+    log.resolveMutation(log.getStagedMutations()[0]!.id, "approved", true);
 
     const { errors } = executor.applyApprovedFromTracker();
 

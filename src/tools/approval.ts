@@ -1,60 +1,29 @@
 import { select, isCancel } from "@clack/prompts";
 import chalk from "chalk";
-import type { ActionTracker } from "./tracker";
-import type { ActionLog } from "./types";
-import { composeBeforeAfter, formatPatch } from "./diff";
+import type { ToolCallLog } from "../core/tools/tracker";
+import type { StagedMutation } from "../core/tools/types";
+import { groupPendingMutations } from "../core/tools/approval";
 import { renderTerminalMarkdown } from "../ui/terminal-md";
 
 interface ReviewGroup {
   label: string;
-  actionIds: string[];
+  mutationIds: string[];
   patch: string | null;
 }
 
-function groupPending(pending: ActionLog[]): ReviewGroup[] {
-  const byPath = new Map<string, ActionLog[]>();
-  const shells: ActionLog[] = [];
+function toReviewGroups(pending: StagedMutation[]): ReviewGroup[] {
+  const { files, shells } = groupPendingMutations(pending);
 
-  for (const a of pending) {
-    if (a.type === "tool_execute") {
-      shells.push(a);
-      continue;
-    }
-    const key = a.path;
-    if (!byPath.has(key)) byPath.set(key, []);
-    byPath.get(key)!.push(a);
-  }
-
-  const groups: ReviewGroup[] = [];
-
-  const pathEntries = [...byPath.entries()].sort(([a], [b]) =>
-    a.localeCompare(b),
+  const groups: ReviewGroup[] = files.map((f) =>
+    f.isFolderOnly
+      ? { label: `Create folder: ${f.path}`, mutationIds: f.mutationIds, patch: null }
+      : { label: `${f.path} (${f.kinds.join(", ")})`, mutationIds: f.mutationIds, patch: f.patch },
   );
-  for (const [p, acts] of pathEntries) {
-    const sorted = acts.sort(
-      (x, y) => x.timestamp.getTime() - y.timestamp.getTime(),
-    );
-    const ids = sorted.map((x) => x.id);
-
-    if (sorted.every((x) => x.type === "folder_create")) {
-      groups.push({
-        label: `Create folder: ${p}`,
-        actionIds: ids,
-        patch: null,
-      });
-      continue;
-    }
-
-    const { before, after } = composeBeforeAfter(sorted);
-    const patch = formatPatch(p, before, after);
-    const kinds = [...new Set(sorted.map((x) => x.type))].join(", ");
-    groups.push({ label: `${p} (${kinds})`, actionIds: ids, patch });
-  }
 
   for (const s of shells) {
     groups.push({
-      label: `Shell: ${s.details.command ?? "(no command)"}`,
-      actionIds: [s.id],
+      label: `Shell: ${s.toolCall.details.command ?? "(no command)"}`,
+      mutationIds: [s.id],
       patch: null,
     });
   }
@@ -62,10 +31,8 @@ function groupPending(pending: ActionLog[]): ReviewGroup[] {
   return groups;
 }
 
-export async function runApprovalFlow(
-  tracker: ActionTracker,
-): Promise<boolean> {
-  const pending = tracker.getPendingMutations();
+export async function runApprovalFlow(log: ToolCallLog): Promise<boolean> {
+  const pending = log.getPendingMutations();
 
   if (pending.length === 0) {
     console.log(
@@ -84,16 +51,16 @@ export async function runApprovalFlow(
   });
 
   if (isCancel(choice) || choice === "cancel") {
-    for (const a of pending) tracker.updateStatus(a.id, "rejected", false);
+    for (const m of pending) log.resolveMutation(m.id, "rejected", false);
     return false;
   }
 
   if (choice === "all") {
-    for (const a of pending) tracker.updateStatus(a.id, "approved", true);
+    for (const m of pending) log.resolveMutation(m.id, "approved", true);
     return true;
   }
 
-  for (const g of groupPending(pending)) {
+  for (const g of toReviewGroups(pending)) {
     while (true) {
       const opt = await select({
         message: chalk.bold(g.label),
@@ -105,7 +72,7 @@ export async function runApprovalFlow(
       });
 
       if (isCancel(opt)) {
-        for (const a of pending) tracker.updateStatus(a.id, "rejected", false);
+        for (const m of pending) log.resolveMutation(m.id, "rejected", false);
         return false;
       }
 
@@ -120,8 +87,8 @@ export async function runApprovalFlow(
         continue;
       }
 
-      for (const id of g.actionIds) {
-        tracker.updateStatus(
+      for (const id of g.mutationIds) {
+        log.resolveMutation(
           id,
           opt === "accept" ? "approved" : "rejected",
           opt === "accept",
@@ -131,5 +98,5 @@ export async function runApprovalFlow(
     }
   }
 
-  return tracker.getActions().some((a) => a.status === "approved");
+  return log.getStagedMutations().some((m) => m.outcome === "approved");
 }

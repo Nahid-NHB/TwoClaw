@@ -7,13 +7,13 @@ import {
 import { z } from "zod";
 import chalk from "chalk";
 import { Output } from "ai";
-import { getAgentModel } from "../../ai";
-import { ActionTracker } from "../../tools/tracker";
-import { ToolExecutor } from "../../tools/executor";
-import { defaultAgentConfig } from "../../tools/types";
-import { createReadOnlyTools } from "../../tools/readonly";
-import { createWebTools } from "../../tools/web";
-import { hasWebTools } from "../../config";
+import { getAgentModel } from "../ai";
+import { ToolCallLog } from "../tools/tracker";
+import { ToolExecutor } from "../tools/executor";
+import { readOnlyAgentConfig } from "../tools/types";
+import { createTools } from "../tools/factory";
+import { createWebTools } from "../tools/web";
+import { hasWebTools } from "../config";
 import type { Plan, PlanStep } from "./types";
 
 const planSchema = z.object({
@@ -43,10 +43,10 @@ const PLAN_INSTRUCTIONS = (codebase: string, hasWeb: boolean) =>
     "Keep it short: 1–15 steps.",
   ].join("\n");
 
-export async function generatePlan(goal: string) {
-  const config = defaultAgentConfig();
-  const tracker = new ActionTracker();
-  const executor = new ToolExecutor(tracker, config);
+export async function generatePlan(goal: string): Promise<Plan> {
+  const config = readOnlyAgentConfig();
+  const log = new ToolCallLog();
+  const executor = new ToolExecutor(log, config);
 
   const hasWeb = hasWebTools();
   const model = wrapLanguageModel({
@@ -55,8 +55,8 @@ export async function generatePlan(goal: string) {
   });
 
   const tools = {
-    ...createReadOnlyTools(executor),
-    ...(hasWeb ? createWebTools(tracker) : {}),
+    ...createTools(executor, { readOnly: true }),
+    ...(hasWeb ? createWebTools(log) : {}),
   };
 
   console.log(chalk.cyan("\n🔍 Researching & drafting a plan…\n"));

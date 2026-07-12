@@ -1,7 +1,7 @@
 import { describe, test, expect, mock } from "bun:test";
 import { MockLanguageModelV3 } from "ai/test";
 
-mock.module("../../ai", () => ({
+mock.module("../ai", () => ({
   getAgentModel: () =>
     new MockLanguageModelV3({
       doGenerate: async () => ({
@@ -27,7 +27,7 @@ mock.module("../../ai", () => ({
     }),
 }));
 
-mock.module("../../config", () => ({ hasWebTools: () => false }));
+mock.module("../config", () => ({ hasWebTools: () => false }));
 
 const { generatePlan } = await import("./planner");
 
