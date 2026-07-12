@@ -1,5 +1,5 @@
 import { Markup } from "telegraf";
-import type { Plan } from "../plan/types";
+import type { Plan } from "../../core/plan/types";
 
 export interface PlanSession {
   plan: Plan;

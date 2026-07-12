@@ -1,6 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod";
-import type { ActionTracker } from "./tracker";
+import { Firecrawl, type SearchResultWeb, type Document } from "@mendable/firecrawl-js";
+import type { ToolCallLog } from "./tracker";
 
 let client: Firecrawl | null = null;
 
@@ -16,7 +17,7 @@ function clip(s: string, n = 8000): string {
   return s.length > n ? s.slice(0, n) + "\n…[truncated]" : s;
 }
 
-export function createWebTools(tracker: ActionTracker) {
+export function createWebTools(log: ToolCallLog) {
   return {
     web_search: tool({
       description: "Search the web. Returns title/url/snippet list.",
@@ -34,7 +35,7 @@ export function createWebTools(tracker: ActionTracker) {
 
         const out =
           items
-            .map((d, i) => {
+            .map((d: SearchResultWeb | Document, i: number) => {
               const title = ("title" in d && d.title) || "(untitled)";
               const url = ("url" in d && d.url) || "";
               const snip = ("snippet" in d && d.snippet) || "";
@@ -42,11 +43,10 @@ export function createWebTools(tracker: ActionTracker) {
             })
             .join("\n\n") || "(no result)";
 
-        tracker.log({
-          type: "code_analysis",
+        log.record({
+          kind: "code_analysis",
           path: `web_search:${query}`,
           details: { after: out, toolName: "web_search" },
-          status: "executed",
         });
 
         return clip(out);
@@ -59,11 +59,10 @@ export function createWebTools(tracker: ActionTracker) {
       execute: async ({ url }) => {
         const doc = await getClient().scrape(url, { formats: ["markdown"] });
         const md = (doc as { markdown?: string }).markdown ?? "";
-        tracker.log({
-          type: "code_analysis",
+        log.record({
+          kind: "code_analysis",
           path: `web_crawl:${url}`,
           details: { after: clip(md), toolName: "web_crawl" },
-          status: "executed",
         });
         return clip(md) || "(empty)";
       },
@@ -76,11 +75,10 @@ export function createWebTools(tracker: ActionTracker) {
         const r = await fetch(url, { redirect: "follow" });
         const body = await r.text();
         const out = clip(body, 16_000);
-        tracker.log({
-          type: "code_analysis",
+        log.record({
+          kind: "code_analysis",
           path: `fetch:${url}`,
           details: { after: `HTTP ${r.status}\n\n${out}`, toolName: "fetch_url" },
-          status: "executed",
         });
         return `HTTP ${r.status}\n\n${out}`;
       },

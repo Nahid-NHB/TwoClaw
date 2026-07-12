@@ -1,5 +1,5 @@
 import { createTwoFilesPatch } from "diff";
-import type { ActionLog } from "./types";
+import type { StagedMutation } from "./types";
 
 export function formatPatch(
   filePath: string,
@@ -11,16 +11,16 @@ export function formatPatch(
   });
 }
 
-export function composeBeforeAfter(sorted: ActionLog[]): {
+export function composeBeforeAfter(sorted: StagedMutation[]): {
   before: string;
   after: string;
 } {
   const first = sorted[0]!;
   const last = sorted[sorted.length - 1]!;
-  if (last.type === "file_delete")
-    return { before: last.details.before ?? "", after: "" };
+  if (last.toolCall.kind === "file_delete")
+    return { before: last.toolCall.details.before ?? "", after: "" };
   const before =
-    first.type === "file_create" ? "" : (first.details.before ?? "");
-  const after = last.details.after ?? "";
+    first.toolCall.kind === "file_create" ? "" : (first.toolCall.details.before ?? "");
+  const after = last.toolCall.details.after ?? "";
   return { before, after };
 }

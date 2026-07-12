@@ -3,11 +3,12 @@ import { isOwner } from "./auth";
 import { WELCOME } from "./constants";
 import { clip, commandArg } from "./text";
 import { runAgent, runAsk, runPlanSteps } from "./agent-run";
-import { generatePlan } from "../plan/planner";
+import { generatePlan } from "../../core/plan/planner";
 import {
   planKeyboard,
   planMessage,
   planSessions,
+  refreshPlanUi,
   type PlanSession,
 } from "./plan-session";
 import { approvalDiff, approvalSessions } from "./approval-session";
@@ -132,7 +133,7 @@ export function registerHandlers(bot: Telegraf) {
     if (!s) return ctx.answerCbQuery();
 
     approvalSessions.delete(ctx.chat!.id);
-    for (const a of s.pending) s.tracker.updateStatus(a.id, "approved", true);
+    for (const m of s.pending) s.log.resolveMutation(m.id, "approved", true);
     const { errors } = s.executor.applyApprovedFromTracker();
     s.executor.clearStaging();
 
@@ -147,8 +148,7 @@ export function registerHandlers(bot: Telegraf) {
     if (!s) return ctx.answerCbQuery();
 
     approvalSessions.delete(ctx.chat!.id);
-    for (const a of s.pending)
-      s.tracker.updateStatus(a.id, "rejected", false);
+    for (const m of s.pending) s.log.resolveMutation(m.id, "rejected", false);
     s.executor.clearStaging();
 
     await ctx.editMessageText(

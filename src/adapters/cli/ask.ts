@@ -1,14 +1,13 @@
 import chalk from "chalk";
 import { confirm, isCancel, text } from "@clack/prompts";
-import { ToolLoopAgent, stepCountIs } from "ai";
-import { getAgentModel } from "../../ai";
-import { ActionTracker } from "../../tools/tracker";
-import { ToolExecutor } from "../../tools/executor";
-import { defaultAgentConfig } from "../../tools/types";
-import { createReadOnlyTools } from "../../tools/readonly";
-import { createWebTools } from "../../tools/web";
-import { runApprovalFlow } from "../../tools/approval";
-import { renderTerminalMarkdown } from "../../ui/terminal-md";
+import { ToolCallLog } from "../../core/tools/tracker";
+import { ToolExecutor } from "../../core/tools/executor";
+import { defaultAgentConfig } from "../../core/tools/types";
+import { createTools } from "../../core/tools/factory";
+import { createWebTools } from "../../core/tools/web";
+import { runAgentSession } from "../../core/session";
+import { runApprovalFlow } from "./approval";
+import { renderTerminalMarkdown } from "./terminal-md";
 
 function asMd(question: string, answer: string): string {
   return `# Ask Mode\n\n## Question\n\n${question.trim()}\n\n## Answer\n\n${answer.trim()}\n`;
@@ -20,29 +19,28 @@ export async function runAskMode() {
   const question = await text({ message: "What do you want to ask?" });
   if (isCancel(question) || !question.trim()) return;
 
+  // Read-only for the agent session, but file creation stays enabled so the
+  // answer can be saved to a .md file below.
   const config = defaultAgentConfig();
-  config.tools.allowFileCreation = true;
   config.tools.allowFileModification = false;
   config.tools.allowFolderCreation = false;
   config.tools.allowShellExecution = false;
 
-  const tracker = new ActionTracker();
-  const executor = new ToolExecutor(tracker, config);
+  const log = new ToolCallLog();
+  const executor = new ToolExecutor(log, config);
 
   const tools = {
-    ...createReadOnlyTools(executor),
-    ...createWebTools(tracker),
+    ...createTools(executor, { readOnly: true }),
+    ...createWebTools(log),
   };
 
-  const agent = new ToolLoopAgent({
-    model: getAgentModel(),
-    stopWhen: stepCountIs(20),
+  const { text: answer } = await runAgentSession({
+    goal: question.trim(),
     tools,
+    maxSteps: 20,
   });
 
-  const result = await agent.generate({ prompt: question.trim() });
-  const answer = result.text?.trim() || "(no answer)";
-  console.log("\n" + renderTerminalMarkdown(answer) + "\n");
+  console.log("\n" + renderTerminalMarkdown(answer.trim() || "(no answer)") + "\n");
 
   const wantsSave = await confirm({
     message: "Save this answer to a .md file in the current directory?",
@@ -65,7 +63,7 @@ export async function runAskMode() {
   if (isCancel(filename)) return;
 
   executor.createFile(filename, asMd(question, answer));
-  const ok = await runApprovalFlow(tracker);
+  const ok = await runApprovalFlow(log);
   if (!ok) return executor.clearStaging();
 
   executor.applyApprovedFromTracker();
