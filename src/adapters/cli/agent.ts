@@ -5,8 +5,8 @@ import { ToolCallLog } from "../../core/tools/tracker";
 import { ToolExecutor } from "../../core/tools/executor";
 import { createTools } from "../../core/tools/factory";
 import { runAgentSession } from "../../core/session";
-import { runApprovalFlow } from "../../tools/approval";
-import { renderTerminalMarkdown } from "../../ui/terminal-md";
+import { runApprovalFlow } from "./approval";
+import { renderTerminalMarkdown } from "./terminal-md";
 
 export async function runAgentMode() {
   console.log(chalk.bold("\n🤖 Agent Mode\n"));

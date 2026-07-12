@@ -1,8 +1,8 @@
 import { select, isCancel } from "@clack/prompts";
 import chalk from "chalk";
 import figlet from "figlet";
-import { runCliMode } from "../modes/selector";
-import { runTelegramMode } from "../modes/telegram";
+import { runCliMode } from "./selector";
+import { runTelegramMode } from "../telegram";
 
 const BANNER_FONT = "ANSI Shadow";
 const SHADOW = chalk.hex("#3fcf29ff");
@@ -42,7 +42,7 @@ export async function runWakeup() {
     ],
   });
 
-  if (isCancel(mode || mode === "exit")) {
+  if (isCancel(mode) || mode === "exit") {
     console.log(chalk.dim("\n Goodbye. \n"));
     return;
   }

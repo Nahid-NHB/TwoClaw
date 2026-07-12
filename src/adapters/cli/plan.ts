@@ -7,10 +7,10 @@ import { createWebTools } from "../../core/tools/web";
 import { defaultAgentConfig } from "../../core/tools/types";
 import { runAgentSession } from "../../core/session";
 import { hasWebTools } from "../../core/config";
-import { runApprovalFlow } from "../../tools/approval";
-import { renderTerminalMarkdown } from "../../ui/terminal-md";
+import { runApprovalFlow } from "./approval";
+import { renderTerminalMarkdown } from "./terminal-md";
 import { generatePlan } from "../../core/plan/planner";
-import { printPlan, selectSteps } from "./selection";
+import { printPlan, selectSteps } from "./plan-selection";
 import type { PlanStep } from "../../core/plan/types";
 
 function stepPrompt(goal: string, step: PlanStep): string {

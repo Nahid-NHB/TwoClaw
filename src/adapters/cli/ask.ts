@@ -6,8 +6,8 @@ import { defaultAgentConfig } from "../../core/tools/types";
 import { createTools } from "../../core/tools/factory";
 import { createWebTools } from "../../core/tools/web";
 import { runAgentSession } from "../../core/session";
-import { runApprovalFlow } from "../../tools/approval";
-import { renderTerminalMarkdown } from "../../ui/terminal-md";
+import { runApprovalFlow } from "./approval";
+import { renderTerminalMarkdown } from "./terminal-md";
 
 function asMd(question: string, answer: string): string {
   return `# Ask Mode\n\n## Question\n\n${question.trim()}\n\n## Answer\n\n${answer.trim()}\n`;

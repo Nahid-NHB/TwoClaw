@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 
 import { Command } from "commander";
-import { runWakeup } from "./ui/banner";
+import { runWakeup } from "./adapters/cli/banner";
 
 const program = new Command();
 
@@ -17,4 +17,9 @@ program
     await runWakeup();
   });
 
-await program.parseAsync(process.argv);
+// Bare `twoclaw` with no subcommand previously did nothing; default to wakeup.
+if (process.argv.length <= 2) {
+  await runWakeup();
+} else {
+  await program.parseAsync(process.argv);
+}

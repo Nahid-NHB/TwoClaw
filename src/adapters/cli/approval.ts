@@ -1,9 +1,9 @@
 import { select, isCancel } from "@clack/prompts";
 import chalk from "chalk";
-import type { ToolCallLog } from "../core/tools/tracker";
-import type { StagedMutation } from "../core/tools/types";
-import { groupPendingMutations } from "../core/tools/approval";
-import { renderTerminalMarkdown } from "../ui/terminal-md";
+import type { ToolCallLog } from "../../core/tools/tracker";
+import type { StagedMutation } from "../../core/tools/types";
+import { groupPendingMutations } from "../../core/tools/approval";
+import { renderTerminalMarkdown } from "./terminal-md";
 
 interface ReviewGroup {
   label: string;
