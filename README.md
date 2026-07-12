@@ -7,13 +7,22 @@ An AI coding agent you drive from the terminal **or Telegram**, where every file
 
 TwoClaw isn't just a chat wrapper around an LLM. Its core design constraint is that mutation is never implicit: the agent runs against an in-memory overlay of your workspace, every tool call is logged as an immutable audit record, and only a subset of those calls — the ones that would actually change something — get queued for you to accept or reject, with a real diff, before `applyApproved` ever writes to disk. See [`docs/adr/0002-split-tool-call-and-staged-mutation.md`](./docs/adr/0002-split-tool-call-and-staged-mutation.md) for why that split exists.
 
-<!--
-Demo placeholder — capture and embed here:
-  1. The startup banner + CLI/Telegram/Exit selector
-  2. Agent Mode running a goal with live tool-call logging
-  3. The approval prompt showing a staged diff (Accept / Reject / Show Diff)
-An asciinema recording or a short terminal GIF (e.g. via `vhs` or `terminalizer`) works well for this.
--->
+## Demo
+
+<p align="center">
+  <img src="./public/assets/1.png" alt="TwoClaw startup banner with the CLI / Telegram / Exit picker" width="700"><br>
+  <sub>Startup banner and interface picker</sub>
+</p>
+
+<p align="center">
+  <img src="./public/assets/2.png" alt="Plan Mode generating a ranked plan from a goal, then selecting which steps to execute" width="700"><br>
+  <sub>Plan Mode: research a goal, get ranked steps, pick which to run</sub>
+</p>
+
+<p align="center">
+  <img src="./public/assets/3.png" alt="A selected plan step executing and returning its analysis" width="700"><br>
+  <sub>A selected step executing against the real project structure</sub>
+</p>
 
 ## Features
 
