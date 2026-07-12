@@ -114,3 +114,7 @@ Issues tracked as GitHub Issues in this repo (uses the `gh` CLI). See `docs/agen
 ### Domain docs
 
 Single-context layout — `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+
+### Available skills
+
+A hand-picked subset of the mattpocock/skills collection is installed globally (`~/.claude/skills/`, not tracked in this repo — see `.gitignore`), including `ask-matt` (router over that collection's flows) and `handoff` (compact the current conversation into a handoff doc for a fresh session). Run `/ask-matt` when unsure which skill fits a situation.
