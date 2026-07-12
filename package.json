@@ -1,10 +1,31 @@
 {
   "name": "twoclaw",
+  "version": "0.1.0",
+  "description": "An AI coding agent you drive from the terminal or Telegram, where every filesystem or shell change is staged and held back for your explicit approval before it touches disk.",
   "module": "index.ts",
   "type": "module",
   "private": true,
+  "license": "MIT",
+  "author": "Md Nahid Hassan Bhuiyan",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Nahid-NHB/TwoClaw.git"
+  },
+  "homepage": "https://github.com/Nahid-NHB/TwoClaw",
+  "keywords": [
+    "ai-agent",
+    "cli",
+    "coding-agent",
+    "telegram-bot",
+    "bun",
+    "openrouter"
+  ],
   "bin": {
     "twoclaw": "./index.ts"
+  },
+  "scripts": {
+    "test": "bun test",
+    "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
     "@types/bun": "latest",
